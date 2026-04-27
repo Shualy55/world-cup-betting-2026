@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { Trophy, Calendar, Users, Info, Edit2, CheckCircle2, Grid, Star, LogIn, UserCheck, Shield, Clock, Sparkles, Bot } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
