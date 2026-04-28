@@ -155,6 +155,7 @@ export default function App() {
   // שגיאות וטעינה למסך ההרשמה
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRequestSent, setIsRequestSent] = useState(false);
 
   // ניחושי בונוס אישיים
   const [myBonus, setMyBonus] = useState({ champion: '', topScorer: '' });
@@ -624,7 +625,30 @@ export default function App() {
           </div>
           <h1 className="text-2xl font-black text-white mb-2">היי {profile.name}!</h1>
           <p className="text-slate-400 mb-6">הפרטים שלך נשמרו בהצלחה. כעת עליך להמתין לאישור מנהל התחרות כדי להיכנס למערכת ולהתחיל לנחש.</p>
-          <p className="text-emerald-400 font-bold text-sm bg-emerald-900/20 py-2 rounded-lg border border-emerald-500/20">שלח הודעה למנהל שיאשר אותך 😉</p>
+          
+          {!isRequestSent ? (
+            <button 
+              onClick={() => {
+                setIsRequestSent(true);
+                fetch("https://formsubmit.co/ajax/shualy55@gmail.com", {
+                  method: "POST",
+                  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                  body: JSON.stringify({
+                      _subject: "תזכורת - מונדיאל 2026 - המשתתף מחכה לאישור!",
+                      "שם המשתתף": profile.name,
+                      "הודעה": "המשתתף לוחץ על כפתור התזכורת ומחכה לאישור שלך."
+                  })
+                }).catch(err => console.error("שגיאה בשליחת התראה למייל:", err));
+              }}
+              className="w-full bg-slate-700 hover:bg-slate-600 text-emerald-400 font-bold py-3 px-4 rounded-xl transition-colors border border-emerald-500/30 flex items-center justify-center gap-2 mt-4"
+            >
+              שלח הודעה למנהל שיאשר אותך 😉
+            </button>
+          ) : (
+            <div className="w-full bg-emerald-900/30 text-emerald-400 font-bold py-3 px-4 rounded-xl border border-emerald-500/30 flex items-center justify-center gap-2 mt-4">
+              <CheckCircle2 size={18} /> נשלח לאישור מנהל!
+            </div>
+          )}
         </div>
       </div>
     );
