@@ -148,6 +148,10 @@ export default function App() {
   const [tempScore, setTempScore] = useState({ s1: 0, s2: 0 });
   const [isAdminMode, setIsAdminMode] = useState(false); 
 
+  // שגיאות וטעינה למסך ההרשמה
+  const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Gemini State
   const [aiAnalysis, setAiAnalysis] = useState({});
   const [isAnalyzing, setIsAnalyzing] = useState({});
@@ -156,7 +160,6 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // מתקן שגיאת התחברות בסביבת התצוגה המקדימה
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
@@ -267,16 +270,32 @@ export default function App() {
 
   // --- פעולות משתמש ---
   const handleSaveProfile = async (name, champion, topScorer) => {
-    if (!user || !name) return;
+    if (!user) {
+      setFormError("שגיאת חיבור 🛑 המערכת חסומה. יש לאשר את הדומיין של האתר בפיירבייס (תחת Authentication -> Settings -> Authorized domains).");
+      return;
+    }
+    if (!name) return;
     
-    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
-    await setDoc(userRef, { 
-      name, 
-      champion: champion || '', 
-      topScorer: topScorer || '',
-      avatar: selectedAvatar,
-      isApproved: false 
-    }, { merge: true });
+    setIsSubmitting(true);
+    setFormError("");
+    
+    try {
+      const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+      const newProfile = { 
+        name, 
+        champion: champion || '', 
+        topScorer: topScorer || '',
+        avatar: selectedAvatar,
+        isApproved: false 
+      };
+      
+      await setDoc(userRef, newProfile, { merge: true });
+      setProfile(newProfile); // מעדכן מקומית מיד כדי לעבור מסך בלי לחכות
+    } catch (err) {
+      console.error(err);
+      setFormError("שגיאה בשמירת הנתונים: " + err.message);
+    }
+    setIsSubmitting(false);
   };
 
   const handleToggleApproval = async (userId, currentStatus) => {
@@ -381,8 +400,15 @@ export default function App() {
               <input name="champion" placeholder="מי תזכה במונדיאל?" className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white text-center mb-3 focus:border-emerald-500 focus:outline-none" />
               <input name="topScorer" placeholder="מי יהיה מלך השערים?" className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white text-center focus:border-emerald-500 focus:outline-none" />
             </div>
-            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold p-4 rounded-xl mt-6 flex items-center justify-center gap-2 transition-colors">
-              <LogIn size={20} /> שלח בקשת הצטרפות
+
+            {formError && (
+              <div className="bg-red-500/20 border border-red-500 text-red-200 text-sm p-3 rounded-xl mb-4 text-center font-medium">
+                {formError}
+              </div>
+            )}
+
+            <button disabled={isSubmitting} type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold p-4 rounded-xl mt-6 flex items-center justify-center gap-2 transition-colors">
+              {isSubmitting ? <span className="animate-pulse">שומר נתונים...</span> : <><LogIn size={20} /> שלח בקשת הצטרפות</>}
             </button>
           </form>
         </div>
