@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Calendar, Users, Info, Edit2, CheckCircle2, Grid, Star, LogIn, UserCheck, Shield, Clock, Sparkles, Bot } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getAuth, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
 
 // --- הגדרות פיירבייס מותאמות אישית ---
@@ -171,8 +171,15 @@ export default function App() {
     };
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      // אכיפת התחברות עם גוגל בלבד (ניתוק אנונימיים מהגרסאות הקודמות)
+      if (currentUser && currentUser.isAnonymous && typeof __initial_auth_token === 'undefined') {
+        console.log("משתמש אנונימי ישן זוהה, מנתק...");
+        await signOut(auth);
+        setUser(null);
+      } else {
+        setUser(currentUser);
+      }
       setIsInitializing(false);
     });
     return () => unsubscribe();
