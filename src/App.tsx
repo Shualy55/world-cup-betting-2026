@@ -138,7 +138,9 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+  const [regName, setRegName] = useState("");
   
   const [activeTab, setActiveTab] = useState('matches');
   const [matches, setMatches] = useState(INITIAL_MATCHES); 
@@ -176,12 +178,11 @@ export default function App() {
     }
   };
 
-  // --- התחברות לפיירבייס ---
+  // --- התחברות וטעינה מהירה לפיירבייס ---
   useEffect(() => {
     const initAuth = async () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          // תמיכה בסביבת התצוגה המקדימה שלנו
           await signInWithCustomToken(auth, __initial_auth_token);
         }
       } catch (error) {
@@ -191,13 +192,15 @@ export default function App() {
     initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      // אכיפת התחברות עם גוגל בלבד (ניתוק אנונימיים מהגרסאות הקודמות)
       if (currentUser && currentUser.isAnonymous && typeof __initial_auth_token === 'undefined') {
         console.log("משתמש אנונימי ישן זוהה, מנתק...");
         await signOut(auth);
         setUser(null);
       } else {
         setUser(currentUser);
+        if (currentUser && currentUser.displayName) {
+          setRegName(currentUser.displayName);
+        }
       }
       setIsAuthChecking(false);
     });
@@ -221,29 +224,50 @@ export default function App() {
     }
   };
 
-  // --- משיכת נתונים מהרשת (Real-time) ---
+  // --- משיכת נתונים מהרשת (Real-time) בצורה בטוחה למניעת הבהובי מסך ---
   useEffect(() => {
     if (!user) {
       setIsDataLoaded(true);
       return;
     }
 
+    let isSubscribed = true;
+
+    // קודם כל משיכה מהירה של פרופיל המשתמש כדי למנוע חזרה למסך ההרשמה בטעות
+    const loadInitialData = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid));
+        if (isSubscribed) {
+          if (userDoc.exists()) {
+            setProfile({ id: userDoc.id, ...userDoc.data() });
+            setMyBonus({ 
+              champion: userDoc.data().champion || '', 
+              topScorer: userDoc.data().topScorer || '' 
+            });
+          } else {
+            setProfile(null);
+          }
+          setIsDataLoaded(true);
+        }
+      } catch (e) {
+        console.error(e);
+        setIsDataLoaded(true);
+      }
+    };
+    loadInitialData();
+
+    // מאזינים בזמן אמת לשינויים בטבלאות
     const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 
     const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
       const usersData = {};
       snapshot.forEach(doc => { usersData[doc.id] = { id: doc.id, ...doc.data() }; });
       setAllUsers(usersData);
+      
+      // עדכון משתמש נוכחי רק אם הוא קיים (כדי למנוע דריסת שדות)
       if (usersData[user.uid]) {
-        setProfile(usersData[user.uid]);
-        setMyBonus({ 
-          champion: usersData[user.uid].champion || '', 
-          topScorer: usersData[user.uid].topScorer || '' 
-        });
-      } else {
-        setProfile(null);
+        setProfile(prev => prev ? { ...prev, isApproved: usersData[user.uid].isApproved } : usersData[user.uid]);
       }
-      setIsDataLoaded(true);
     }, console.error);
 
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
@@ -264,7 +288,12 @@ export default function App() {
       setAllPredictions(predsData);
     }, console.error);
 
-    return () => { unsubUsers(); unsubMatches(); unsubPredictions(); };
+    return () => { 
+      isSubscribed = false;
+      unsubUsers(); 
+      unsubMatches(); 
+      unsubPredictions(); 
+    };
   }, [user]);
 
   // --- חישוב טבלת מובילים ---
@@ -324,12 +353,16 @@ export default function App() {
 
 
   // --- פעולות משתמש ---
-  const handleSaveProfile = async (name) => {
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
     if (!user) {
       setFormError("שגיאת חיבור 🛑");
       return;
     }
-    if (!name) return;
+    if (!regName.trim()) {
+      setFormError("אנא הזן שם");
+      return;
+    }
     
     setIsSubmitting(true);
     setFormError("");
@@ -337,7 +370,8 @@ export default function App() {
     try {
       const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
       const newProfile = { 
-        name, 
+        name: regName, 
+        email: user.email || '',
         avatar: selectedAvatar,
         isApproved: profile?.isApproved || false 
       };
@@ -345,7 +379,9 @@ export default function App() {
       await setDoc(userRef, newProfile, { merge: true });
       setProfile(prev => ({ ...prev, ...newProfile })); 
 
-      // שליחת התראה למייל רק לנרשמים חדשים (אם לא היה להם פרופיל קודם)
+      alert("הבקשה נשלחה בהצלחה! ממתין לאישור מנהל המערכת.");
+
+      // התראה למנהל במייל על משתמש חדש
       if (!profile) {
         fetch("https://formsubmit.co/ajax/shualy55@gmail.com", {
           method: "POST",
@@ -355,7 +391,7 @@ export default function App() {
           },
           body: JSON.stringify({
               _subject: "מונדיאל 2026 - בקשת הצטרפות חדשה!",
-              "שם המשתתף": name,
+              "שם המשתתף": regName,
               "הודעה": "משתתף חדש נרשם לאפליקציה וממתין לאישור שלך כדי להתחיל לשחק."
           })
         }).catch(err => console.error("שגיאה בשליחת התראה למייל:", err));
@@ -398,10 +434,26 @@ export default function App() {
     }
   };
 
-  const handleToggleApproval = async (userId, currentStatus) => {
+  const handleToggleApproval = async (targetUser) => {
     if (!user || !isAdminMode) return;
-    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', userId);
-    await updateDoc(userRef, { isApproved: !currentStatus });
+    
+    const currentStatus = targetUser.isApproved;
+    const newStatus = !currentStatus;
+    
+    try {
+      const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', targetUser.id);
+      await updateDoc(userRef, { isApproved: newStatus });
+      
+      // אם אישרנו משתמש ויש לו אימייל מעודכן, נפתח חלונית לשליחת הודעת אישור למייל שלו
+      if (newStatus && targetUser.email) {
+        const subject = encodeURIComponent("אושרת בהצלחה לתחרות המונדיאל!");
+        const body = encodeURIComponent(`היי ${targetUser.name},\n\nאושרת בהצלחה לאפליקציית ניחושי מונדיאל 2026!\nאתה מוזמן להיכנס ללינק ולהתחיל לנחש:\nhttps://world-cup-betting-2026-6go4.vercel.app/\n\nבהצלחה!`);
+        window.location.href = `mailto:${targetUser.email}?subject=${subject}&body=${body}`;
+      }
+    } catch (error) {
+       console.error("שגיאה בעדכון סטטוס משתמש", error);
+       alert("אירעה שגיאה בעדכון משתמש.");
+    }
   };
 
   const handlePredict = async (matchId, t1, t2) => {
@@ -458,11 +510,15 @@ export default function App() {
     });
   };
 
+  // מסך טעינה מהודר שמונע קפיצות
   if (isAuthChecking || (user && !isDataLoaded)) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-         <div className="text-emerald-400 font-bold text-xl flex items-center gap-3 animate-pulse">
-            <Clock className="animate-spin" /> טוען נתונים...
+      <div dir="rtl" className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+         <div className="w-20 h-20 bg-emerald-900/50 rounded-full flex items-center justify-center mb-6">
+            <Trophy size={40} className="text-yellow-400 animate-pulse" />
+         </div>
+         <div className="text-emerald-400 font-bold text-xl flex items-center gap-3">
+            <Clock className="animate-spin" /> טוען נתונים מהמגרש...
          </div>
       </div>
     );
@@ -512,13 +568,17 @@ export default function App() {
           <h1 className="text-3xl font-black text-white mb-2">השלמת הרשמה</h1>
           <p className="text-slate-400 mb-8">איזה יופי שהצטרפת! רק שם ואווטאר וסיימנו.</p>
           
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            handleSaveProfile(e.target.name.value);
-          }} className="space-y-4">
+          <form onSubmit={handleSaveProfile} className="space-y-4">
             <div>
               <p className="text-emerald-400 text-xs font-bold mb-1 text-right px-2">איך תרצה להופיע בטבלה?</p>
-              <input name="name" defaultValue={user.displayName || ''} required placeholder="איך קוראים לך?" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl text-white text-center focus:border-emerald-500 focus:outline-none" />
+              <input 
+                 name="name" 
+                 value={regName} 
+                 onChange={(e) => setRegName(e.target.value)} 
+                 required 
+                 placeholder="איך קוראים לך?" 
+                 className="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl text-white text-center focus:border-emerald-500 focus:outline-none" 
+              />
             </div>
             
             <div className="pt-2">
@@ -735,14 +795,15 @@ export default function App() {
                     <div className="flex flex-wrap gap-2">
                       {Object.values(allUsers).filter(u => u.isApproved).map(u => {
                         const pred = allPredictions[u.id]?.[match.id];
-                        const hidePrediction = !isMatchStarted && u.id !== user.uid;
+                        // הסתרת ניחושים כל עוד המשחק לא ננעל (ורק אם זה לא אני)
+                        const hidePrediction = !isMatchLocked && u.id !== user.uid;
                         
                         return (
                           <div key={u.id} className="bg-slate-900/80 px-2 py-1.5 rounded text-xs flex items-center gap-1 border border-slate-800">
                             <img src={u.avatar} alt="" className="w-4 h-4 rounded-full" />
                             <span className="text-slate-300 max-w-[50px] truncate">{u.name}:</span>
                             <span className={`font-bold ${pred ? 'text-white' : 'text-slate-600'}`}>
-                              {pred ? (hidePrediction ? '?' : `${pred.t1}-${pred.t2}`) : '-'}
+                              {pred ? (hidePrediction ? '❓' : `${pred.t1}-${pred.t2}`) : '-'}
                             </span>
                           </div>
                         )
@@ -954,7 +1015,7 @@ export default function App() {
                       </div>
                     </div>
                     <button 
-                      onClick={() => handleToggleApproval(u.id, u.isApproved)}
+                      onClick={() => handleToggleApproval(u)}
                       className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors ${u.isApproved ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
                     >
                       <UserCheck size={16} />
