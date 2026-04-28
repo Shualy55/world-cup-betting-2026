@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { Trophy, Calendar, Users, Info, Edit2, CheckCircle2, Grid, Star, LogIn, UserCheck, Shield, Clock, Sparkles, Bot } from 'lucide-react';
+import { Trophy, Calendar, Users, Info, Edit2, CheckCircle2, Grid, Star, LogIn, UserCheck, Shield, Clock, Sparkles, Bot, Lock, Save } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
@@ -100,43 +100,44 @@ const TEAM_FLAGS = {
 // רשימה חלקית להדגמה
 const INITIAL_MATCHES = [
   // מחזור 1
-  { id: 1, date: '11/06/2026', team1: 'מקסיקו', team2: 'דרום אפריקה', group: 'בית א', stage: 'group' },
-  { id: 2, date: '11/06/2026', team1: 'דרום קוריאה', team2: 'צ\'כיה', group: 'בית א', stage: 'group' },
-  { id: 3, date: '12/06/2026', team1: 'קנדה', team2: 'בוסניה', group: 'בית ב', stage: 'group' },
-  { id: 4, date: '12/06/2026', team1: 'ארה"ב', team2: 'פרגוואי', group: 'בית ד', stage: 'group' },
-  { id: 5, date: '13/06/2026', team1: 'האיטי', team2: 'סקוטלנד', group: 'בית ג', stage: 'group' },
-  { id: 6, date: '13/06/2026', team1: 'אוסטרליה', team2: 'טורקיה', group: 'בית ד', stage: 'group' },
-  { id: 7, date: '13/06/2026', team1: 'ברזיל', team2: 'מרוקו', group: 'בית ג', stage: 'group' },
-  { id: 8, date: '13/06/2026', team1: 'קטאר', team2: 'שוויץ', group: 'בית ב', stage: 'group' },
-  { id: 9, date: '14/06/2026', team1: 'חוף השנהב', team2: 'אקוודור', group: 'בית ה', stage: 'group' },
-  { id: 10, date: '14/06/2026', team1: 'גרמניה', team2: 'קוראסאו', group: 'בית ה', stage: 'group' },
-  { id: 11, date: '14/06/2026', team1: 'הולנד', team2: 'יפן', group: 'בית ו', stage: 'group' },
-  { id: 12, date: '14/06/2026', team1: 'שבדיה', team2: 'תוניסיה', group: 'בית ו', stage: 'group' },
-  { id: 13, date: '15/06/2026', team1: 'ערב הסעודית', team2: 'אורוגוואי', group: 'בית ח', stage: 'group' },
-  { id: 14, date: '15/06/2026', team1: 'ספרד', team2: 'כף ורדה', group: 'בית ח', stage: 'group' },
-  { id: 15, date: '15/06/2026', team1: 'איראן', team2: 'ניו זילנד', group: 'בית ז', stage: 'group' },
-  { id: 16, date: '15/06/2026', team1: 'בלגיה', team2: 'מצרים', group: 'בית ז', stage: 'group' },
-  { id: 17, date: '16/06/2026', team1: 'צרפת', team2: 'סנגל', group: 'בית ט', stage: 'group' },
-  { id: 18, date: '16/06/2026', team1: 'עיראק', team2: 'נורווגיה', group: 'בית ט', stage: 'group' },
-  { id: 19, date: '16/06/2026', team1: 'ארגנטינה', team2: 'אלג\'יריה', group: 'בית י', stage: 'group' },
-  { id: 20, date: '16/06/2026', team1: 'אוסטריה', team2: 'ירדן', group: 'בית י', stage: 'group' },
+  { id: 1, date: '11/06/2026', time: '22:00', team1: 'מקסיקו', team2: 'דרום אפריקה', group: 'בית א', stage: 'group' },
+  { id: 2, date: '11/06/2026', time: '01:00', team1: 'דרום קוריאה', team2: 'צ\'כיה', group: 'בית א', stage: 'group' },
+  { id: 3, date: '12/06/2026', time: '19:00', team1: 'קנדה', team2: 'בוסניה', group: 'בית ב', stage: 'group' },
+  { id: 4, date: '12/06/2026', time: '22:00', team1: 'ארה"ב', team2: 'פרגוואי', group: 'בית ד', stage: 'group' },
+  { id: 5, date: '13/06/2026', time: '01:00', team1: 'האיטי', team2: 'סקוטלנד', group: 'בית ג', stage: 'group' },
+  { id: 6, date: '13/06/2026', time: '04:00', team1: 'אוסטרליה', team2: 'טורקיה', group: 'בית ד', stage: 'group' },
+  { id: 7, date: '13/06/2026', time: '19:00', team1: 'ברזיל', team2: 'מרוקו', group: 'בית ג', stage: 'group' },
+  { id: 8, date: '13/06/2026', time: '22:00', team1: 'קטאר', team2: 'שוויץ', group: 'בית ב', stage: 'group' },
+  { id: 9, date: '14/06/2026', time: '19:00', team1: 'חוף השנהב', team2: 'אקוודור', group: 'בית ה', stage: 'group' },
+  { id: 10, date: '14/06/2026', time: '22:00', team1: 'גרמניה', team2: 'קוראסאו', group: 'בית ה', stage: 'group' },
+  { id: 11, date: '14/06/2026', time: '01:00', team1: 'הולנד', team2: 'יפן', group: 'בית ו', stage: 'group' },
+  { id: 12, date: '14/06/2026', time: '04:00', team1: 'שבדיה', team2: 'תוניסיה', group: 'בית ו', stage: 'group' },
+  { id: 13, date: '15/06/2026', time: '19:00', team1: 'ערב הסעודית', team2: 'אורוגוואי', group: 'בית ח', stage: 'group' },
+  { id: 14, date: '15/06/2026', time: '22:00', team1: 'ספרד', team2: 'כף ורדה', group: 'בית ח', stage: 'group' },
+  { id: 15, date: '15/06/2026', time: '01:00', team1: 'איראן', team2: 'ניו זילנד', group: 'בית ז', stage: 'group' },
+  { id: 16, date: '15/06/2026', time: '04:00', team1: 'בלגיה', team2: 'מצרים', group: 'בית ז', stage: 'group' },
+  { id: 17, date: '16/06/2026', time: '19:00', team1: 'צרפת', team2: 'סנגל', group: 'בית ט', stage: 'group' },
+  { id: 18, date: '16/06/2026', time: '22:00', team1: 'עיראק', team2: 'נורווגיה', group: 'בית ט', stage: 'group' },
+  { id: 19, date: '16/06/2026', time: '01:00', team1: 'ארגנטינה', team2: 'אלג\'יריה', group: 'בית י', stage: 'group' },
+  { id: 20, date: '16/06/2026', time: '04:00', team1: 'אוסטריה', team2: 'ירדן', group: 'בית י', stage: 'group' },
   // מחזור 2 (מדגם)
-  { id: 21, date: '17/06/2026', team1: 'גאנה', team2: 'פנמה', group: 'בית י"ב', stage: 'group' },
-  { id: 22, date: '17/06/2026', team1: 'אנגליה', team2: 'קרואטיה', group: 'בית י"ב', stage: 'group' },
-  { id: 23, date: '18/06/2026', team1: 'צ\'כיה', team2: 'דרום אפריקה', group: 'בית א', stage: 'group' },
-  { id: 24, date: '18/06/2026', team1: 'מקסיקו', team2: 'דרום קוריאה', group: 'בית א', stage: 'group' },
+  { id: 21, date: '17/06/2026', time: '19:00', team1: 'גאנה', team2: 'פנמה', group: 'בית י"ב', stage: 'group' },
+  { id: 22, date: '17/06/2026', time: '22:00', team1: 'אנגליה', team2: 'קרואטיה', group: 'בית י"ב', stage: 'group' },
+  { id: 23, date: '18/06/2026', time: '19:00', team1: 'צ\'כיה', team2: 'דרום אפריקה', group: 'בית א', stage: 'group' },
+  { id: 24, date: '18/06/2026', time: '22:00', team1: 'מקסיקו', team2: 'דרום קוריאה', group: 'בית א', stage: 'group' },
   // שלבי נוקאאוט
-  { id: 73, date: '28/06/2026', team1: 'סגנית בית א\'', team2: 'סגנית בית ב\'', group: '32 האחרונות', stage: 'knockout' },
-  { id: 89, date: '04/07/2026', team1: 'מנצחת 74', team2: 'מנצחת 77', group: 'שמינית גמר', stage: 'knockout' },
-  { id: 97, date: '09/07/2026', team1: 'מנצחת 89', team2: 'מנצחת 90', group: 'רבע גמר', stage: 'knockout' },
-  { id: 101, date: '14/07/2026', team1: 'מנצחת 97', team2: 'מנצחת 98', group: 'חצי גמר', stage: 'knockout' },
-  { id: 104, date: '19/07/2026', team1: 'מנצחת 101', team2: 'מנצחת 102', group: 'גמר', stage: 'knockout' },
+  { id: 73, date: '28/06/2026', time: '23:00', team1: 'סגנית בית א\'', team2: 'סגנית בית ב\'', group: '32 האחרונות', stage: 'knockout' },
+  { id: 89, date: '04/07/2026', time: '23:00', team1: 'מנצחת 74', team2: 'מנצחת 77', group: 'שמינית גמר', stage: 'knockout' },
+  { id: 97, date: '09/07/2026', time: '02:00', team1: 'מנצחת 89', team2: 'מנצחת 90', group: 'רבע גמר', stage: 'knockout' },
+  { id: 101, date: '14/07/2026', time: '02:00', team1: 'מנצחת 97', team2: 'מנצחת 98', group: 'חצי גמר', stage: 'knockout' },
+  { id: 104, date: '19/07/2026', time: '22:00', team1: 'מנצחת 101', team2: 'מנצחת 102', group: 'גמר', stage: 'knockout' },
 ].map(m => ({ ...m, score1: null, score2: null, status: 'pending' }));
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
   
   const [activeTab, setActiveTab] = useState('matches');
@@ -153,9 +154,27 @@ export default function App() {
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ניחושי בונוס אישיים
+  const [myBonus, setMyBonus] = useState({ champion: '', topScorer: '' });
+
   // Gemini State
   const [aiAnalysis, setAiAnalysis] = useState({});
   const [isAnalyzing, setIsAnalyzing] = useState({});
+
+  // --- פונקציות נעילת זמן ---
+  const isBonusLocked = new Date() > new Date('2026-06-11T21:00:00+03:00');
+
+  const checkIsMatchLocked = (dateStr, timeStr = '22:00') => {
+    try {
+      const [day, month, year] = dateStr.split('/');
+      const [hours, minutes] = timeStr.split(':');
+      const matchTime = new Date(`${year}-${month}-${day}T${hours}:${minutes}:00+03:00`);
+      const lockTime = new Date(matchTime.getTime() - 60 * 60 * 1000); // שעה לפני המשחק
+      return new Date() > lockTime;
+    } catch (err) {
+      return false;
+    }
+  };
 
   // --- התחברות לפיירבייס ---
   useEffect(() => {
@@ -180,7 +199,7 @@ export default function App() {
       } else {
         setUser(currentUser);
       }
-      setIsInitializing(false);
+      setIsAuthChecking(false);
     });
     return () => unsubscribe();
   }, []);
@@ -204,7 +223,10 @@ export default function App() {
 
   // --- משיכת נתונים מהרשת (Real-time) ---
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setIsDataLoaded(true);
+      return;
+    }
 
     const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 
@@ -212,7 +234,16 @@ export default function App() {
       const usersData = {};
       snapshot.forEach(doc => { usersData[doc.id] = { id: doc.id, ...doc.data() }; });
       setAllUsers(usersData);
-      if (usersData[user.uid]) setProfile(usersData[user.uid]);
+      if (usersData[user.uid]) {
+        setProfile(usersData[user.uid]);
+        setMyBonus({ 
+          champion: usersData[user.uid].champion || '', 
+          topScorer: usersData[user.uid].topScorer || '' 
+        });
+      } else {
+        setProfile(null);
+      }
+      setIsDataLoaded(true);
     }, console.error);
 
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
@@ -293,7 +324,7 @@ export default function App() {
 
 
   // --- פעולות משתמש ---
-  const handleSaveProfile = async (name, champion, topScorer) => {
+  const handleSaveProfile = async (name) => {
     if (!user) {
       setFormError("שגיאת חיבור 🛑");
       return;
@@ -307,34 +338,48 @@ export default function App() {
       const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
       const newProfile = { 
         name, 
-        champion: champion || '', 
-        topScorer: topScorer || '',
         avatar: selectedAvatar,
-        isApproved: false 
+        isApproved: profile?.isApproved || false 
       };
       
       await setDoc(userRef, newProfile, { merge: true });
-      setProfile(newProfile); 
+      setProfile(prev => ({ ...prev, ...newProfile })); 
 
-      // שליחת התראה למייל על הרשמה חדשה
-      fetch("https://formsubmit.co/ajax/shualy55@gmail.com", {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-            _subject: "מונדיאל 2026 - בקשת הצטרפות חדשה!",
-            "שם המשתתף": name,
-            "הודעה": "משתתף חדש נרשם לאפליקציה וממתין לאישור שלך כדי להתחיל לשחק."
-        })
-      }).catch(err => console.error("שגיאה בשליחת התראה למייל:", err));
+      // שליחת התראה למייל רק לנרשמים חדשים (אם לא היה להם פרופיל קודם)
+      if (!profile) {
+        fetch("https://formsubmit.co/ajax/shualy55@gmail.com", {
+          method: "POST",
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+              _subject: "מונדיאל 2026 - בקשת הצטרפות חדשה!",
+              "שם המשתתף": name,
+              "הודעה": "משתתף חדש נרשם לאפליקציה וממתין לאישור שלך כדי להתחיל לשחק."
+          })
+        }).catch(err => console.error("שגיאה בשליחת התראה למייל:", err));
+      }
 
     } catch (err) {
       console.error(err);
       setFormError("שגיאה בשמירת הנתונים: " + err.message);
     }
     setIsSubmitting(false);
+  };
+
+  const handleSaveBonus = async () => {
+    if (!user || isBonusLocked) return;
+    try {
+      const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+      await updateDoc(userRef, { 
+        champion: myBonus.champion, 
+        topScorer: myBonus.topScorer 
+      });
+      alert("בחירות הבונוס נשמרו בהצלחה! 🎉");
+    } catch (error) {
+      alert("שגיאה בשמירת הבונוס: " + error.message);
+    }
   };
 
   // מנגנון סיסמת מנהל
@@ -413,7 +458,15 @@ export default function App() {
     });
   };
 
-  if (isInitializing) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-emerald-400 font-bold">טוען נתונים...</div>;
+  if (isAuthChecking || (user && !isDataLoaded)) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+         <div className="text-emerald-400 font-bold text-xl flex items-center gap-3 animate-pulse">
+            <Clock className="animate-spin" /> טוען נתונים...
+         </div>
+      </div>
+    );
+  }
 
   // --- מסך פתיחה (התחברות לגוגל) ---
   if (!user) {
@@ -457,11 +510,11 @@ export default function App() {
             <Trophy size={40} className="text-yellow-400" />
           </div>
           <h1 className="text-3xl font-black text-white mb-2">השלמת הרשמה</h1>
-          <p className="text-slate-400 mb-8">איזה יופי שהצטרפת! רק כמה פרטים אחרונים וסיימנו.</p>
+          <p className="text-slate-400 mb-8">איזה יופי שהצטרפת! רק שם ואווטאר וסיימנו.</p>
           
           <form onSubmit={(e) => {
             e.preventDefault();
-            handleSaveProfile(e.target.name.value, e.target.champion.value, e.target.topScorer.value);
+            handleSaveProfile(e.target.name.value);
           }} className="space-y-4">
             <div>
               <p className="text-emerald-400 text-xs font-bold mb-1 text-right px-2">איך תרצה להופיע בטבלה?</p>
@@ -481,12 +534,6 @@ export default function App() {
                   />
                 ))}
               </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-700">
-              <p className="text-emerald-400 text-sm font-bold mb-3 flex items-center justify-center gap-2">שאלות בונוס <Star size={14} className="text-yellow-400"/></p>
-              <input name="champion" placeholder="מי תזכה במונדיאל?" className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white text-center mb-3 focus:border-emerald-500 focus:outline-none" />
-              <input name="topScorer" placeholder="מי יהיה מלך השערים?" className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white text-center focus:border-emerald-500 focus:outline-none" />
             </div>
 
             {formError && (
@@ -567,13 +614,15 @@ export default function App() {
             {matches.map(match => {
               const myPrediction = allPredictions[user.uid]?.[match.id];
               const isMatchStarted = match.status === 'finished'; 
+              const isMatchLocked = checkIsMatchLocked(match.date, match.time);
               const isAIActive = isAnalyzing[match.id];
               const aiResult = aiAnalysis[match.id];
               
               return (
                 <div key={match.id} className="bg-slate-800 rounded-2xl p-4 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col">
-                  <div className="absolute top-0 right-0 bg-slate-700 text-[10px] px-3 py-1 rounded-bl-lg text-slate-300 font-bold z-10">
-                    {match.group} | {match.date}
+                  <div className="absolute top-0 right-0 bg-slate-700 text-[10px] px-3 py-1 rounded-bl-lg text-slate-300 font-bold z-10 flex items-center gap-1">
+                    {match.group} | {match.date} {match.time && `- ${match.time}`}
+                    {isMatchLocked && !isMatchStarted && <Lock size={10} className="text-red-400" />}
                   </div>
                   
                   <div className="flex items-center justify-between mt-4">
@@ -612,15 +661,23 @@ export default function App() {
                         <div className="flex flex-col items-center gap-2">
                           <div className="text-slate-500 font-black text-xl">VS</div>
                           {!isMatchStarted && (
-                             <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-700 shadow-inner">
-                               <input type="number" min="0" placeholder="?" className="w-8 h-8 bg-transparent text-center text-white font-bold focus:outline-none" 
-                                 value={myPrediction?.t1 ?? ''} 
-                                 onChange={(e) => handlePredict(match.id, e.target.value, myPrediction?.t2 ?? 0)} />
-                               <span className="text-slate-500">-</span>
-                               <input type="number" min="0" placeholder="?" className="w-8 h-8 bg-transparent text-center text-white font-bold focus:outline-none" 
-                                 value={myPrediction?.t2 ?? ''} 
-                                 onChange={(e) => handlePredict(match.id, myPrediction?.t1 ?? 0, e.target.value)} />
-                             </div>
+                            isMatchLocked && !isAdminMode ? (
+                              <div className="flex items-center justify-center gap-2 bg-slate-900/80 px-4 py-1.5 rounded-lg border border-slate-700">
+                                <span className="text-white font-bold text-lg">{myPrediction?.t1 ?? '-'}</span>
+                                <span className="text-slate-500">-</span>
+                                <span className="text-white font-bold text-lg">{myPrediction?.t2 ?? '-'}</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-700 shadow-inner">
+                                <input type="number" min="0" placeholder="?" className="w-8 h-8 bg-transparent text-center text-white font-bold focus:outline-none" 
+                                  value={myPrediction?.t1 ?? ''} 
+                                  onChange={(e) => handlePredict(match.id, e.target.value, myPrediction?.t2 ?? 0)} />
+                                <span className="text-slate-500">-</span>
+                                <input type="number" min="0" placeholder="?" className="w-8 h-8 bg-transparent text-center text-white font-bold focus:outline-none" 
+                                  value={myPrediction?.t2 ?? ''} 
+                                  onChange={(e) => handlePredict(match.id, myPrediction?.t1 ?? 0, e.target.value)} />
+                              </div>
+                            )
                           )}
                         </div>
                       )}
@@ -796,27 +853,85 @@ export default function App() {
 
         {/* --- Tab: Bonuses --- */}
         {activeTab === 'bonuses' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-emerald-400 mb-4 px-2">בחירות הבונוס של החבר'ה</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.values(allUsers).filter(u => u.isApproved).map(u => (
-                <div key={u.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center gap-4 hover:border-slate-500 transition-colors">
-                  <img src={u.avatar} alt="" className="w-12 h-12 rounded-full bg-slate-700 border-2 border-slate-600" />
-                  <div className="flex-1">
-                    <h3 className="font-bold text-white text-lg mb-2">{u.name}</h3>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between bg-slate-900/50 px-2 py-1 rounded">
-                        <span className="text-slate-400">אלופה:</span>
-                        <span className="font-bold text-yellow-400">{u.champion || 'לא הזין'}</span>
-                      </div>
-                      <div className="flex justify-between bg-slate-900/50 px-2 py-1 rounded">
-                        <span className="text-slate-400">מלך השערים:</span>
-                        <span className="font-bold text-emerald-400">{u.topScorer || 'לא הזין'}</span>
+          <div className="space-y-6">
+            
+            {/* אזור העריכה האישי */}
+            <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-yellow-600"></div>
+              <h3 className="font-black text-white text-lg mb-2 flex items-center gap-2">
+                <Star size={20} className="text-yellow-400" /> הבונוס שלי
+              </h3>
+              
+              {isBonusLocked ? (
+                <div className="bg-red-900/20 border border-red-500/30 text-red-300 text-xs p-2 rounded-lg mb-4 flex items-center gap-2">
+                  <Lock size={14} /> אפשרות העריכה ננעלה (הטורניר החל).
+                </div>
+              ) : (
+                <div className="bg-emerald-900/20 border border-emerald-500/30 text-emerald-300 text-xs p-2 rounded-lg mb-4 flex items-center gap-2">
+                  <Clock size={14} /> פתוח לשינויים עד 11/06/2026 בשעה 21:00
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-1">מי תזכה במונדיאל?</label>
+                  <input 
+                    type="text" 
+                    value={myBonus.champion}
+                    onChange={e => setMyBonus(prev => ({...prev, champion: e.target.value}))}
+                    disabled={isBonusLocked}
+                    placeholder="לדוגמה: ארגנטינה" 
+                    className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white focus:border-yellow-500 focus:outline-none disabled:opacity-60" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-1">מי יהיה מלך השערים?</label>
+                  <input 
+                    type="text" 
+                    value={myBonus.topScorer}
+                    onChange={e => setMyBonus(prev => ({...prev, topScorer: e.target.value}))}
+                    disabled={isBonusLocked}
+                    placeholder="לדוגמה: אמבפה" 
+                    className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white focus:border-yellow-500 focus:outline-none disabled:opacity-60" 
+                  />
+                </div>
+                
+                {!isBonusLocked && (
+                  <button onClick={handleSaveBonus} className="w-full bg-slate-700 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <Save size={18} /> שמור ניחושי בונוס
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <hr className="border-slate-700" />
+
+            <div>
+              <h2 className="text-lg font-bold text-emerald-400 mb-4 px-2">בחירות הבונוס של החבר'ה</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.values(allUsers).filter(u => u.isApproved).map(u => (
+                  <div key={u.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center gap-4 hover:border-slate-500 transition-colors">
+                    <img src={u.avatar} alt="" className="w-12 h-12 rounded-full bg-slate-700 border-2 border-slate-600" />
+                    <div className="flex-1">
+                      <h3 className="font-bold text-white text-lg mb-2">{u.name}</h3>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between bg-slate-900/50 px-2 py-1 rounded">
+                          <span className="text-slate-400">אלופה:</span>
+                          <span className="font-bold text-yellow-400">
+                            {u.id === user.uid ? (u.champion || 'לא הזין') : (!isBonusLocked ? '❓ חסוי עד לנעילה' : (u.champion || 'לא הזין'))}
+                          </span>
+                        </div>
+                        <div className="flex justify-between bg-slate-900/50 px-2 py-1 rounded">
+                          <span className="text-slate-400">מלך השערים:</span>
+                          <span className="font-bold text-emerald-400">
+                            {u.id === user.uid ? (u.topScorer || 'לא הזין') : (!isBonusLocked ? '❓ חסוי עד לנעילה' : (u.topScorer || 'לא הזין'))}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         )}
