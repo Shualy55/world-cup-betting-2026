@@ -290,12 +290,43 @@ export default function App() {
       };
       
       await setDoc(userRef, newProfile, { merge: true });
-      setProfile(newProfile); // מעדכן מקומית מיד כדי לעבור מסך בלי לחכות
+      setProfile(newProfile); 
+
+      // שליחת התראה למייל על הרשמה חדשה
+      fetch("https://formsubmit.co/ajax/shualy55@gmail.com", {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            _subject: "מונדיאל 2026 - בקשת הצטרפות חדשה!",
+            "שם המשתתף": name,
+            "הודעה": "משתתף חדש נרשם לאפליקציה וממתין לאישור שלך כדי להתחיל לשחק."
+        })
+      }).catch(err => console.error("שגיאה בשליחת התראה למייל:", err));
+
     } catch (err) {
       console.error(err);
       setFormError("שגיאה בשמירת הנתונים: " + err.message);
     }
     setIsSubmitting(false);
+  };
+
+  // מנגנון סיסמת מנהל
+  const handleAdminClick = () => {
+    if (isAdminMode) {
+      setIsAdminMode(false); // כיבוי מצב מנהל
+      return;
+    }
+    
+    const password = prompt("הכנס סיסמת מנהל:");
+    if (password === "5555") {
+      setIsAdminMode(true);
+      alert("ברוך הבא מנהל! כעת תוכל לאשר משתתפים ולעדכן תוצאות אמת.");
+    } else if (password !== null) { // null אומר שהמשתמש לחץ 'ביטול'
+      alert("סיסמה שגויה! הגישה נדחתה.");
+    }
   };
 
   const handleToggleApproval = async (userId, currentStatus) => {
@@ -421,7 +452,7 @@ export default function App() {
     return (
       <div dir="rtl" className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 max-w-md w-full text-center relative overflow-hidden">
-          <button onClick={() => setIsAdminMode(true)} className="absolute top-4 left-4 text-slate-600 hover:text-slate-400"><Shield size={20}/></button>
+          <button onClick={handleAdminClick} className="absolute top-4 left-4 text-slate-600 hover:text-emerald-400 transition-colors"><Shield size={20}/></button>
           
           <div className="w-24 h-24 bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6 relative">
              <img src={profile.avatar} alt="avatar" className="w-20 h-20 rounded-full border-2 border-emerald-500/50" />
@@ -445,7 +476,7 @@ export default function App() {
             <p className="text-emerald-200 font-medium text-xs flex items-center gap-1">התחרות של החבר'ה • שלום {profile.name}</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setIsAdminMode(!isAdminMode)} className={`text-xs px-2 py-1 rounded border ${isAdminMode ? 'bg-red-500 border-red-400' : 'bg-transparent border-emerald-400 text-emerald-200'}`}>
+            <button onClick={handleAdminClick} className={`text-xs px-2 py-1 rounded border transition-colors ${isAdminMode ? 'bg-red-500 border-red-400 text-white' : 'bg-transparent border-emerald-400 text-emerald-200 hover:bg-emerald-700'}`}>
               {isAdminMode ? 'מצב מנהל דולק' : 'מנהל?'}
             </button>
             <img src={profile.avatar} alt="avatar" className="w-10 h-10 rounded-full border-2 border-emerald-400 bg-slate-800" />
