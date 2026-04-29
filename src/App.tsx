@@ -232,45 +232,41 @@ export default function App() {
       return;
     }
 
-    let isSubscribed = true;
-
-    // קודם כל משיכה מהירה של פרופיל המשתמש כדי למנוע חזרה למסך ההרשמה בטעות
-    const loadInitialData = async () => {
-      try {
-        const userDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid));
-        if (isSubscribed) {
-          if (userDoc.exists()) {
-            setProfile({ id: userDoc.id, ...userDoc.data() });
-            setMyBonus({ 
-              champion: userDoc.data().champion || '', 
-              topScorer: userDoc.data().topScorer || '' 
-            });
-          } else {
-            setProfile(null);
-          }
-          setIsDataLoaded(true);
-        }
-      } catch (e) {
-        console.error(e);
+    setIsDataLoaded(false); // איפוס מצב טעינה כדי שהמסך ימתין לנתונים
+    
+    let loadedCount = 0;
+    const markLoaded = () => {
+      loadedCount++;
+      if (loadedCount >= 3) {
         setIsDataLoaded(true);
       }
     };
-    loadInitialData();
 
-    // מאזינים בזמן אמת לשינויים בטבלאות
     const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 
+    // משיכת משתמשים
     const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
       const usersData = {};
       snapshot.forEach(doc => { usersData[doc.id] = { id: doc.id, ...doc.data() }; });
       setAllUsers(usersData);
       
-      // עדכון משתמש נוכחי רק אם הוא קיים (כדי למנוע דריסת שדות)
+      // ברגע שהנתונים ירדו, אם המשתמש שלנו קיים במסד הנתונים נכניס אותו
       if (usersData[user.uid]) {
-        setProfile(prev => prev ? { ...prev, isApproved: usersData[user.uid].isApproved } : usersData[user.uid]);
+        setProfile(usersData[user.uid]);
+        setMyBonus({ 
+          champion: usersData[user.uid].champion || '', 
+          topScorer: usersData[user.uid].topScorer || '' 
+        });
+      } else {
+        setProfile(null);
       }
-    }, console.error);
+      markLoaded();
+    }, (error) => {
+      console.error(error);
+      markLoaded();
+    });
 
+    // משיכת משחקים
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
       if (!snapshot.empty) {
         const updates = {};
@@ -281,16 +277,24 @@ export default function App() {
           return up ? { ...m, score1: up.score1, score2: up.score2, status: up.status } : m;
         }));
       }
-    }, console.error);
+      markLoaded();
+    }, (error) => {
+      console.error(error);
+      markLoaded();
+    });
 
+    // משיכת ניחושים
     const unsubPredictions = onSnapshot(publicRef('predictions'), (snapshot) => {
       const predsData = {};
       snapshot.forEach(doc => { predsData[doc.id] = doc.data(); });
       setAllPredictions(predsData);
-    }, console.error);
+      markLoaded();
+    }, (error) => {
+      console.error(error);
+      markLoaded();
+    });
 
     return () => { 
-      isSubscribed = false;
       unsubUsers(); 
       unsubMatches(); 
       unsubPredictions(); 
