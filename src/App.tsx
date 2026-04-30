@@ -225,7 +225,7 @@ export default function App() {
     }
   };
 
-  // --- משיכת נתונים מהרשת (Real-time) בצורה בטוחה ומהירה ---
+  // --- משיכת נתונים מהרשת בצורה חסינה למניעת הבהובים ---
   useEffect(() => {
     if (!user) {
       setIsDataLoaded(true);
@@ -234,62 +234,68 @@ export default function App() {
 
     setIsDataLoaded(false);
     let isMounted = true;
+    let profileLoaded = false;
+    let matchesLoaded = false;
 
-    // 1. שולפים את הפרופיל האישי ישירות כדי למנוע המתנה!
-    const fetchMyProfile = async () => {
-      try {
-        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
-        const docSnap = await getDoc(userRef);
-        if (isMounted) {
-          if (docSnap.exists()) {
-            setProfile({ id: docSnap.id, ...docSnap.data() });
-            setMyBonus({ 
-              champion: docSnap.data().champion || '', 
-              topScorer: docSnap.data().topScorer || '' 
-            });
-          } else {
-            setProfile(null);
-          }
-          setIsDataLoaded(true); // פותח את המסך ברגע שיש תשובה
-        }
-      } catch (error) {
-        console.error(error);
-        if (isMounted) setIsDataLoaded(true);
+    const checkLoaded = () => {
+      if (profileLoaded && matchesLoaded && isMounted) {
+        setIsDataLoaded(true);
       }
     };
 
-    fetchMyProfile();
-
-    // 2. מאזינים לכל שאר הנתונים ברקע
     const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 
+    // משיכת משתמשים (כולל הפרופיל האישי שלך)
     const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
+      if (!isMounted) return;
+      
       const usersData = {};
       snapshot.forEach(d => { usersData[d.id] = { id: d.id, ...d.data() }; });
-      if (isMounted) setAllUsers(usersData);
+      setAllUsers(usersData);
       
-      if (isMounted && usersData[user.uid]) {
-        setProfile(prev => prev ? { ...prev, isApproved: usersData[user.uid].isApproved } : prev);
+      if (usersData[user.uid]) {
+        setProfile(usersData[user.uid]);
+        setMyBonus({ 
+          champion: usersData[user.uid].champion || '', 
+          topScorer: usersData[user.uid].topScorer || '' 
+        });
+      } else {
+        setProfile(null);
       }
-    }, console.error);
+      
+      profileLoaded = true;
+      checkLoaded();
+    }, (error) => {
+      console.error(error);
+      profileLoaded = true;
+      checkLoaded();
+    });
 
+    // משיכת משחקים
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
+      if (!isMounted) return;
       if (!snapshot.empty) {
         const updates = {};
         snapshot.forEach(d => { updates[d.id] = d.data(); });
-        if (isMounted) {
-          setMatches(prev => prev.map(m => {
-            const up = updates[m.id.toString()];
-            return up ? { ...m, score1: up.score1, score2: up.score2, status: up.status } : m;
-          }));
-        }
+        setMatches(prev => prev.map(m => {
+          const up = updates[m.id.toString()];
+          return up ? { ...m, score1: up.score1, score2: up.score2, status: up.status } : m;
+        }));
       }
-    }, console.error);
+      matchesLoaded = true;
+      checkLoaded();
+    }, (error) => {
+      console.error(error);
+      matchesLoaded = true;
+      checkLoaded();
+    });
 
+    // משיכת ניחושים
     const unsubPredictions = onSnapshot(publicRef('predictions'), (snapshot) => {
+      if (!isMounted) return;
       const predsData = {};
       snapshot.forEach(d => { predsData[d.id] = d.data(); });
-      if (isMounted) setAllPredictions(predsData);
+      setAllPredictions(predsData);
     }, console.error);
 
     return () => { 
@@ -381,7 +387,7 @@ export default function App() {
       };
       
       await setDoc(userRef, newProfile, { merge: true });
-      setProfile(prev => ({ ...prev, ...newProfile })); 
+      // אין צורך לעשות setProfile ידני, ה-onSnapshot ידאג לזה ויעביר מסך כשהנתונים בטוחים
 
       alert("הבקשה נשלחה בהצלחה! ממתין לאישור מנהל המערכת.");
 
