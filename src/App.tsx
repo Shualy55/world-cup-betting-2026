@@ -179,7 +179,7 @@ export default function App() {
     }
   };
 
-  // --- התחברות וטעינה מהירה לפיירבייס ---
+  // --- התחברות מהירה לפיירבייס ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -194,7 +194,6 @@ export default function App() {
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser && currentUser.isAnonymous && typeof __initial_auth_token === 'undefined') {
-        console.log("משתמש אנונימי ישן זוהה, מנתק...");
         await signOut(auth);
         setUser(null);
       } else {
@@ -225,7 +224,7 @@ export default function App() {
     }
   };
 
-  // --- משיכת נתונים מהרשת בצורה חסינה למניעת הבהובים ---
+  // --- משיכת נתונים מהרשת בצורה סופר-מהירה ---
   useEffect(() => {
     if (!user) {
       setIsDataLoaded(true);
@@ -234,44 +233,36 @@ export default function App() {
 
     setIsDataLoaded(false);
     let isMounted = true;
-    let profileLoaded = false;
-    let matchesLoaded = false;
 
-    const checkLoaded = () => {
-      if (profileLoaded && matchesLoaded && isMounted) {
-        setIsDataLoaded(true);
-      }
-    };
-
-    const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
-
-    // משיכת משתמשים (כולל הפרופיל האישי שלך)
-    const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
+    // 1. שולפים אך ורק את הפרופיל האישי כדי למנוע המתנה ארוכה!
+    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+    const unsubProfile = onSnapshot(userRef, (docSnap) => {
       if (!isMounted) return;
-      
-      const usersData = {};
-      snapshot.forEach(d => { usersData[d.id] = { id: d.id, ...d.data() }; });
-      setAllUsers(usersData);
-      
-      if (usersData[user.uid]) {
-        setProfile(usersData[user.uid]);
+      if (docSnap.exists()) {
+        setProfile({ id: docSnap.id, ...docSnap.data() });
         setMyBonus({ 
-          champion: usersData[user.uid].champion || '', 
-          topScorer: usersData[user.uid].topScorer || '' 
+          champion: docSnap.data().champion || '', 
+          topScorer: docSnap.data().topScorer || '' 
         });
       } else {
         setProfile(null);
       }
-      
-      profileLoaded = true;
-      checkLoaded();
+      setIsDataLoaded(true); // ברגע שהפרופיל האישי ירד (מאית שנייה) - האפליקציה נפתחת!
     }, (error) => {
-      console.error(error);
-      profileLoaded = true;
-      checkLoaded();
+      console.error("Profile fetch error:", error);
+      if (isMounted) setIsDataLoaded(true);
     });
 
-    // משיכת משחקים
+    // 2. שאר הנתונים הענקיים נטענים בשקט ברקע ולא תוקעים את המסך טעינה
+    const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
+
+    const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
+      if (!isMounted) return;
+      const usersData = {};
+      snapshot.forEach(d => { usersData[d.id] = { id: d.id, ...d.data() }; });
+      setAllUsers(usersData);
+    }, console.error);
+
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
       if (!isMounted) return;
       if (!snapshot.empty) {
@@ -282,15 +273,8 @@ export default function App() {
           return up ? { ...m, score1: up.score1, score2: up.score2, status: up.status } : m;
         }));
       }
-      matchesLoaded = true;
-      checkLoaded();
-    }, (error) => {
-      console.error(error);
-      matchesLoaded = true;
-      checkLoaded();
-    });
+    }, console.error);
 
-    // משיכת ניחושים
     const unsubPredictions = onSnapshot(publicRef('predictions'), (snapshot) => {
       if (!isMounted) return;
       const predsData = {};
@@ -300,6 +284,7 @@ export default function App() {
 
     return () => { 
       isMounted = false;
+      unsubProfile();
       unsubUsers(); 
       unsubMatches(); 
       unsubPredictions(); 
@@ -387,7 +372,6 @@ export default function App() {
       };
       
       await setDoc(userRef, newProfile, { merge: true });
-      // אין צורך לעשות setProfile ידני, ה-onSnapshot ידאג לזה ויעביר מסך כשהנתונים בטוחים
 
       alert("הבקשה נשלחה בהצלחה! ממתין לאישור מנהל המערכת.");
 
