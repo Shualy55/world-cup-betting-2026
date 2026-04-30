@@ -22,11 +22,11 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// מזהה האפליקציה (שומר על שלך כשזה רץ בחוץ)
+// מזהה האפליקציה
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'worldcup2026-bet'; 
 
 // --- הגדרות Gemini API ---
-const apiKey = ""; // API Key provided by runtime environment
+const apiKey = ""; 
 
 const callGemini = async (prompt, systemPrompt) => {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
@@ -69,7 +69,6 @@ const GROUP_TEAMS = {
   'בית י"ב': ['אנגליה', 'קרואטיה', 'גאנה', 'פנמה']
 };
 
-// --- אווטארים לבחירה ---
 const AVATARS = [
   'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix',
   'https://api.dicebear.com/7.x/adventurer/svg?seed=Aneka',
@@ -81,7 +80,6 @@ const AVATARS = [
   'https://api.dicebear.com/7.x/adventurer/svg?seed=Mia'
 ];
 
-// מיפוי נבחרות לקודי מדינות כדי להציג דגלים
 const TEAM_FLAGS = {
   'מקסיקו': 'mx', 'דרום אפריקה': 'za', 'דרום קוריאה': 'kr', 'צ\'כיה': 'cz',
   'קנדה': 'ca', 'בוסניה': 'ba', 'קטאר': 'qa', 'שוויץ': 'ch',
@@ -97,7 +95,6 @@ const TEAM_FLAGS = {
   'אנגליה': 'gb-eng', 'קרואטיה': 'hr', 'גאנה': 'gh', 'פנמה': 'pa'
 };
 
-// רשימה חלקית להדגמה
 const INITIAL_MATCHES = [
   // מחזור 1
   { id: 1, date: '11/06/2026', time: '22:00', team1: 'מקסיקו', team2: 'דרום אפריקה', group: 'בית א', stage: 'group' },
@@ -136,8 +133,9 @@ const INITIAL_MATCHES = [
 export default function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
   const [regName, setRegName] = useState("");
@@ -152,19 +150,15 @@ export default function App() {
   const [tempScore, setTempScore] = useState({ s1: 0, s2: 0 });
   const [isAdminMode, setIsAdminMode] = useState(false); 
 
-  // שגיאות וטעינה למסך ההרשמה
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestSent, setIsRequestSent] = useState(false);
 
-  // ניחושי בונוס אישיים
   const [myBonus, setMyBonus] = useState({ champion: '', topScorer: '' });
 
-  // Gemini State
   const [aiAnalysis, setAiAnalysis] = useState({});
   const [isAnalyzing, setIsAnalyzing] = useState({});
 
-  // --- פונקציות נעילת זמן ---
   const isBonusLocked = new Date() > new Date('2026-06-11T21:00:00+03:00');
 
   const checkIsMatchLocked = (dateStr, timeStr = '22:00') => {
@@ -172,14 +166,14 @@ export default function App() {
       const [day, month, year] = dateStr.split('/');
       const [hours, minutes] = timeStr.split(':');
       const matchTime = new Date(`${year}-${month}-${day}T${hours}:${minutes}:00+03:00`);
-      const lockTime = new Date(matchTime.getTime() - 60 * 60 * 1000); // שעה לפני המשחק
+      const lockTime = new Date(matchTime.getTime() - 60 * 60 * 1000); 
       return new Date() > lockTime;
     } catch (err) {
       return false;
     }
   };
 
-  // --- התחברות מהירה לפיירבייס ---
+  // 1. ניהול התחברות בסיסית
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -207,7 +201,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- התחברות עם גוגל ---
   const handleGoogleLogin = async () => {
     setFormError("");
     try {
@@ -224,47 +217,47 @@ export default function App() {
     }
   };
 
-  // --- משיכת נתונים מהרשת בצורה סופר-מהירה ---
+  // 2. טעינת נתונים חסינה ונקיה - תלויה אך ורק ב-UID ולא באובייקט המשתמש!
   useEffect(() => {
-    if (!user) {
-      setIsDataLoaded(true);
+    if (!user?.uid) {
+      setIsProfileLoading(false);
       return;
     }
 
-    setIsDataLoaded(false);
-    let isMounted = true;
+    setIsProfileLoading(true);
 
-    // 1. שולפים אך ורק את הפרופיל האישי כדי למנוע המתנה ארוכה!
-    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
-    const unsubProfile = onSnapshot(userRef, (docSnap) => {
-      if (!isMounted) return;
-      if (docSnap.exists()) {
-        setProfile({ id: docSnap.id, ...docSnap.data() });
-        setMyBonus({ 
-          champion: docSnap.data().champion || '', 
-          topScorer: docSnap.data().topScorer || '' 
-        });
+    const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
+
+    // משיכת המשתמשים כולם, ובתוכם הפרופיל שלך - מבטל התנגשויות והבהובים
+    const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
+      const usersData = {};
+      let myProfileData = null;
+      
+      snapshot.forEach(doc => { 
+        usersData[doc.id] = { id: doc.id, ...doc.data() }; 
+        if (doc.id === user.uid) {
+          myProfileData = usersData[doc.id];
+        }
+      });
+      
+      setAllUsers(usersData);
+      
+      if (myProfileData) {
+        setProfile(myProfileData);
+        setMyBonus(prev => ({
+          champion: myProfileData.champion || prev.champion || '',
+          topScorer: myProfileData.topScorer || prev.topScorer || ''
+        }));
       } else {
         setProfile(null);
       }
-      setIsDataLoaded(true); // ברגע שהפרופיל האישי ירד (מאית שנייה) - האפליקציה נפתחת!
+      setIsProfileLoading(false);
     }, (error) => {
-      console.error("Profile fetch error:", error);
-      if (isMounted) setIsDataLoaded(true);
+      console.error(error);
+      setIsProfileLoading(false);
     });
 
-    // 2. שאר הנתונים הענקיים נטענים בשקט ברקע ולא תוקעים את המסך טעינה
-    const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
-
-    const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
-      if (!isMounted) return;
-      const usersData = {};
-      snapshot.forEach(d => { usersData[d.id] = { id: d.id, ...d.data() }; });
-      setAllUsers(usersData);
-    }, console.error);
-
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
-      if (!isMounted) return;
       if (!snapshot.empty) {
         const updates = {};
         snapshot.forEach(d => { updates[d.id] = d.data(); });
@@ -276,20 +269,17 @@ export default function App() {
     }, console.error);
 
     const unsubPredictions = onSnapshot(publicRef('predictions'), (snapshot) => {
-      if (!isMounted) return;
       const predsData = {};
       snapshot.forEach(d => { predsData[d.id] = d.data(); });
       setAllPredictions(predsData);
     }, console.error);
 
     return () => { 
-      isMounted = false;
-      unsubProfile();
       unsubUsers(); 
       unsubMatches(); 
       unsubPredictions(); 
     };
-  }, [user]);
+  }, [user?.uid]); // <--- תיקון הקסם: תלוי רק בתעודת הזהות
 
   // --- חישוב טבלת מובילים ---
   useEffect(() => {
@@ -375,7 +365,6 @@ export default function App() {
 
       alert("הבקשה נשלחה בהצלחה! ממתין לאישור מנהל המערכת.");
 
-      // התראה למנהל במייל על משתמש חדש
       if (!profile) {
         fetch("https://formsubmit.co/ajax/shualy55@gmail.com", {
           method: "POST",
@@ -412,10 +401,9 @@ export default function App() {
     }
   };
 
-  // מנגנון סיסמת מנהל
   const handleAdminClick = () => {
     if (isAdminMode) {
-      setIsAdminMode(false); // כיבוי מצב מנהל
+      setIsAdminMode(false); 
       return;
     }
     
@@ -423,7 +411,7 @@ export default function App() {
     if (password === "5555") {
       setIsAdminMode(true);
       alert("ברוך הבא מנהל! כעת תוכל לאשר משתתפים ולעדכן תוצאות אמת.");
-    } else if (password !== null) { // null אומר שהמשתמש לחץ 'ביטול'
+    } else if (password !== null) { 
       alert("סיסמה שגויה! הגישה נדחתה.");
     }
   };
@@ -438,7 +426,6 @@ export default function App() {
       const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', targetUser.id);
       await updateDoc(userRef, { isApproved: newStatus });
       
-      // אם אישרנו משתמש ויש לו אימייל מעודכן, נפתח חלונית לשליחת הודעת אישור למייל שלו
       if (newStatus && targetUser.email) {
         const subject = encodeURIComponent("אושרת בהצלחה לתחרות המונדיאל!");
         const body = encodeURIComponent(`היי ${targetUser.name},\n\nאושרת בהצלחה לאפליקציית ניחושי מונדיאל 2026!\nאתה מוזמן להיכנס ללינק ולהתחיל לנחש:\nhttps://world-cup-betting-2026-6go4.vercel.app/\n\nבהצלחה!`);
@@ -504,8 +491,9 @@ export default function App() {
     });
   };
 
-  // מסך טעינה מהודר שמונע קפיצות
-  if (isAuthChecking || (user && !isDataLoaded)) {
+  // --- ניתוב המסכים ---
+  
+  if (isAuthChecking || (user && isProfileLoading)) {
     return (
       <div dir="rtl" className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
          <div className="w-20 h-20 bg-emerald-900/50 rounded-full flex items-center justify-center mb-6">
@@ -518,7 +506,6 @@ export default function App() {
     );
   }
 
-  // --- מסך פתיחה (התחברות לגוגל) ---
   if (!user) {
     return (
       <div dir="rtl" className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -550,7 +537,6 @@ export default function App() {
     );
   }
 
-  // --- מסך הרשמה (השלמת פרופיל) ---
   if (!profile) {
     return (
       <div dir="rtl" className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -605,7 +591,6 @@ export default function App() {
     );
   }
 
-  // --- מסך המתנה לאישור מנהל ---
   if (!profile.isApproved && !isAdminMode) {
     return (
       <div dir="rtl" className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
