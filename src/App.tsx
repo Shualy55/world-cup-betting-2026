@@ -217,7 +217,7 @@ export default function App() {
     }
   };
 
-  // 2. טעינת נתונים חסינה ונקיה - תלויה אך ורק ב-UID ולא באובייקט המשתמש!
+  // 2. טעינת נתונים - קריאה ישירה לפרופיל ללא הסתמכות על ה-Cache הקבוצתי (פותר הבהובים והמתנות)
   useEffect(() => {
     if (!user?.uid) {
       setIsProfileLoading(false);
@@ -225,39 +225,52 @@ export default function App() {
     }
 
     setIsProfileLoading(true);
+    let isMounted = true;
 
+    // משיכה ישירה של הפרופיל (מונע "קפיצה" למסך ההרשמה בגלל Cache ריק)
+    const loadProfile = async () => {
+      try {
+        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+        const docSnap = await getDoc(userRef);
+
+        if (isMounted) {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setProfile({ id: docSnap.id, ...data });
+            setMyBonus({
+              champion: data.champion || '',
+              topScorer: data.topScorer || ''
+            });
+          } else {
+            setProfile(null);
+          }
+          setIsProfileLoading(false); // הפסקת מסך הטעינה אך ורק לאחר קבלת תשובה ברורה מהשרת
+        }
+      } catch (error) {
+        console.error("שגיאה במשיכת פרופיל:", error);
+        if (isMounted) setIsProfileLoading(false);
+      }
+    };
+
+    loadProfile();
+
+    // מאזינים לשאר הנתונים באפליקציה במקביל
     const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 
-    // משיכת המשתמשים כולם, ובתוכם הפרופיל שלך - מבטל התנגשויות והבהובים
     const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
+      if (!isMounted) return;
       const usersData = {};
-      let myProfileData = null;
-      
-      snapshot.forEach(doc => { 
-        usersData[doc.id] = { id: doc.id, ...doc.data() }; 
-        if (doc.id === user.uid) {
-          myProfileData = usersData[doc.id];
-        }
-      });
-      
+      snapshot.forEach(d => { usersData[d.id] = { id: d.id, ...d.data() }; });
       setAllUsers(usersData);
       
-      if (myProfileData) {
-        setProfile(myProfileData);
-        setMyBonus(prev => ({
-          champion: myProfileData.champion || prev.champion || '',
-          topScorer: myProfileData.topScorer || prev.topScorer || ''
-        }));
-      } else {
-        setProfile(null);
+      // במידה ויש שינוי בסטטוס המשתמש (למשל המנהל אישר אותו), נעדכן את הסטייט בלי לדרוס אותו ל-null
+      if (usersData[user.uid]) {
+        setProfile(prev => prev ? { ...prev, isApproved: usersData[user.uid].isApproved } : usersData[user.uid]);
       }
-      setIsProfileLoading(false);
-    }, (error) => {
-      console.error(error);
-      setIsProfileLoading(false);
-    });
+    }, console.error);
 
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
+      if (!isMounted) return;
       if (!snapshot.empty) {
         const updates = {};
         snapshot.forEach(d => { updates[d.id] = d.data(); });
@@ -269,17 +282,19 @@ export default function App() {
     }, console.error);
 
     const unsubPredictions = onSnapshot(publicRef('predictions'), (snapshot) => {
+      if (!isMounted) return;
       const predsData = {};
       snapshot.forEach(d => { predsData[d.id] = d.data(); });
       setAllPredictions(predsData);
     }, console.error);
 
     return () => { 
+      isMounted = false;
       unsubUsers(); 
       unsubMatches(); 
       unsubPredictions(); 
     };
-  }, [user?.uid]); // <--- תיקון הקסם: תלוי רק בתעודת הזהות
+  }, [user?.uid]);
 
   // --- חישוב טבלת מובילים ---
   useEffect(() => {
