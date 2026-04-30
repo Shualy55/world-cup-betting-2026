@@ -225,76 +225,75 @@ export default function App() {
     }
   };
 
-  // --- משיכת נתונים מהרשת (Real-time) בצורה בטוחה למניעת הבהובי מסך ---
+  // --- משיכת נתונים מהרשת (Real-time) בצורה בטוחה ומהירה ---
   useEffect(() => {
     if (!user) {
       setIsDataLoaded(true);
       return;
     }
 
-    setIsDataLoaded(false); // איפוס מצב טעינה כדי שהמסך ימתין לנתונים
-    
-    let loadedCount = 0;
-    const markLoaded = () => {
-      loadedCount++;
-      if (loadedCount >= 3) {
-        setIsDataLoaded(true);
+    setIsDataLoaded(false);
+    let isMounted = true;
+
+    // 1. שולפים את הפרופיל האישי ישירות כדי למנוע המתנה!
+    const fetchMyProfile = async () => {
+      try {
+        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+        const docSnap = await getDoc(userRef);
+        if (isMounted) {
+          if (docSnap.exists()) {
+            setProfile({ id: docSnap.id, ...docSnap.data() });
+            setMyBonus({ 
+              champion: docSnap.data().champion || '', 
+              topScorer: docSnap.data().topScorer || '' 
+            });
+          } else {
+            setProfile(null);
+          }
+          setIsDataLoaded(true); // פותח את המסך ברגע שיש תשובה
+        }
+      } catch (error) {
+        console.error(error);
+        if (isMounted) setIsDataLoaded(true);
       }
     };
 
+    fetchMyProfile();
+
+    // 2. מאזינים לכל שאר הנתונים ברקע
     const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 
-    // משיכת משתמשים
     const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
       const usersData = {};
-      snapshot.forEach(doc => { usersData[doc.id] = { id: doc.id, ...doc.data() }; });
-      setAllUsers(usersData);
+      snapshot.forEach(d => { usersData[d.id] = { id: d.id, ...d.data() }; });
+      if (isMounted) setAllUsers(usersData);
       
-      // ברגע שהנתונים ירדו, אם המשתמש שלנו קיים במסד הנתונים נכניס אותו
-      if (usersData[user.uid]) {
-        setProfile(usersData[user.uid]);
-        setMyBonus({ 
-          champion: usersData[user.uid].champion || '', 
-          topScorer: usersData[user.uid].topScorer || '' 
-        });
-      } else {
-        setProfile(null);
+      if (isMounted && usersData[user.uid]) {
+        setProfile(prev => prev ? { ...prev, isApproved: usersData[user.uid].isApproved } : prev);
       }
-      markLoaded();
-    }, (error) => {
-      console.error(error);
-      markLoaded();
-    });
+    }, console.error);
 
-    // משיכת משחקים
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
       if (!snapshot.empty) {
         const updates = {};
-        snapshot.forEach(doc => { updates[doc.id] = doc.data(); });
-        
-        setMatches(prev => prev.map(m => {
-          const up = updates[m.id.toString()];
-          return up ? { ...m, score1: up.score1, score2: up.score2, status: up.status } : m;
-        }));
+        snapshot.forEach(d => { updates[d.id] = d.data(); });
+        if (isMounted) {
+          setMatches(prev => prev.map(m => {
+            const up = updates[m.id.toString()];
+            return up ? { ...m, score1: up.score1, score2: up.score2, status: up.status } : m;
+          }));
+        }
       }
-      markLoaded();
-    }, (error) => {
-      console.error(error);
-      markLoaded();
-    });
+    }, console.error);
 
-    // משיכת ניחושים
     const unsubPredictions = onSnapshot(publicRef('predictions'), (snapshot) => {
       const predsData = {};
-      snapshot.forEach(doc => { predsData[doc.id] = doc.data(); });
-      setAllPredictions(predsData);
-      markLoaded();
-    }, (error) => {
-      console.error(error);
-      markLoaded();
-    });
+      snapshot.forEach(d => { predsData[d.id] = d.data(); });
+      if (isMounted) setAllPredictions(predsData);
+    }, console.error);
 
     return () => { 
+      isMounted = false;
       unsubUsers(); 
       unsubMatches(); 
       unsubPredictions(); 
