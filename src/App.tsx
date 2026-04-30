@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, Calendar, Users, Info, Edit2, CheckCircle2, Grid, Star, LogIn, UserCheck, Shield, Clock, Sparkles, Bot, Lock, Save } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 
 // --- הגדרות פיירבייס מותאמות אישית ---
 const customFirebaseConfig = {
@@ -15,17 +15,14 @@ const customFirebaseConfig = {
   appId: "1:5025503677:web:9f353305fe17d6b4855ad4"
 };
 
-// תמיכה חכמה: משתמש בהגדרות התצוגה המקדימה כשאנחנו פה, ובהגדרות שלך כשאתה ב-StackBlitz
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : customFirebaseConfig;
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// מזהה האפליקציה
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'worldcup2026-bet'; 
 
-// --- הגדרות Gemini API ---
 const apiKey = ""; 
 
 const callGemini = async (prompt, systemPrompt) => {
@@ -53,7 +50,6 @@ const callGemini = async (prompt, systemPrompt) => {
   }
 };
 
-// --- נתונים סטטיים (104 משחקים + בתים) ---
 const GROUP_TEAMS = {
   'בית א': ['מקסיקו', 'דרום אפריקה', 'דרום קוריאה', 'צ\'כיה'],
   'בית ב': ['קנדה', 'בוסניה', 'קטאר', 'שוויץ'],
@@ -96,7 +92,6 @@ const TEAM_FLAGS = {
 };
 
 const INITIAL_MATCHES = [
-  // מחזור 1
   { id: 1, date: '11/06/2026', time: '22:00', team1: 'מקסיקו', team2: 'דרום אפריקה', group: 'בית א', stage: 'group' },
   { id: 2, date: '11/06/2026', time: '01:00', team1: 'דרום קוריאה', team2: 'צ\'כיה', group: 'בית א', stage: 'group' },
   { id: 3, date: '12/06/2026', time: '19:00', team1: 'קנדה', team2: 'בוסניה', group: 'בית ב', stage: 'group' },
@@ -117,12 +112,10 @@ const INITIAL_MATCHES = [
   { id: 18, date: '16/06/2026', time: '22:00', team1: 'עיראק', team2: 'נורווגיה', group: 'בית ט', stage: 'group' },
   { id: 19, date: '16/06/2026', time: '01:00', team1: 'ארגנטינה', team2: 'אלג\'יריה', group: 'בית י', stage: 'group' },
   { id: 20, date: '16/06/2026', time: '04:00', team1: 'אוסטריה', team2: 'ירדן', group: 'בית י', stage: 'group' },
-  // מחזור 2 (מדגם)
   { id: 21, date: '17/06/2026', time: '19:00', team1: 'גאנה', team2: 'פנמה', group: 'בית י"ב', stage: 'group' },
   { id: 22, date: '17/06/2026', time: '22:00', team1: 'אנגליה', team2: 'קרואטיה', group: 'בית י"ב', stage: 'group' },
   { id: 23, date: '18/06/2026', time: '19:00', team1: 'צ\'כיה', team2: 'דרום אפריקה', group: 'בית א', stage: 'group' },
   { id: 24, date: '18/06/2026', time: '22:00', team1: 'מקסיקו', team2: 'דרום קוריאה', group: 'בית א', stage: 'group' },
-  // שלבי נוקאאוט
   { id: 73, date: '28/06/2026', time: '23:00', team1: 'סגנית בית א\'', team2: 'סגנית בית ב\'', group: '32 האחרונות', stage: 'knockout' },
   { id: 89, date: '04/07/2026', time: '23:00', team1: 'מנצחת 74', team2: 'מנצחת 77', group: 'שמינית גמר', stage: 'knockout' },
   { id: 97, date: '09/07/2026', time: '02:00', team1: 'מנצחת 89', team2: 'מנצחת 90', group: 'רבע גמר', stage: 'knockout' },
@@ -135,7 +128,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [isUsersLoaded, setIsUsersLoaded] = useState(false);
   
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
   const [regName, setRegName] = useState("");
@@ -173,7 +166,7 @@ export default function App() {
     }
   };
 
-  // 1. ניהול התחברות בסיסית
+  // --- ניהול התחברות בסיסית ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -217,63 +210,33 @@ export default function App() {
     }
   };
 
-  // 2. טעינת נתונים - קריאה ישירה לפרופיל ללא הסתמכות על ה-Cache הקבוצתי (פותר הבהובים והמתנות)
+  // --- משיכת נתונים (חזרה לשיטה המהירה והפשוטה) ---
   useEffect(() => {
-    if (!user?.uid) {
-      setIsProfileLoading(false);
-      return;
-    }
+    if (!user) return;
 
-    setIsProfileLoading(true);
-    let isMounted = true;
-
-    // משיכה ישירה של הפרופיל (מונע "קפיצה" למסך ההרשמה בגלל Cache ריק)
-    const loadProfile = async () => {
-      try {
-        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
-        const docSnap = await getDoc(userRef);
-
-        if (isMounted) {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            setProfile({ id: docSnap.id, ...data });
-            setMyBonus({
-              champion: data.champion || '',
-              topScorer: data.topScorer || ''
-            });
-          } else {
-            setProfile(null);
-          }
-          setIsProfileLoading(false); // הפסקת מסך הטעינה אך ורק לאחר קבלת תשובה ברורה מהשרת
-        }
-      } catch (error) {
-        console.error("שגיאה במשיכת פרופיל:", error);
-        if (isMounted) setIsProfileLoading(false);
-      }
-    };
-
-    loadProfile();
-
-    // מאזינים לשאר הנתונים באפליקציה במקביל
     const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 
     const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
-      if (!isMounted) return;
       const usersData = {};
-      snapshot.forEach(d => { usersData[d.id] = { id: d.id, ...d.data() }; });
+      snapshot.forEach(doc => { usersData[doc.id] = { id: doc.id, ...doc.data() }; });
       setAllUsers(usersData);
       
-      // במידה ויש שינוי בסטטוס המשתמש (למשל המנהל אישר אותו), נעדכן את הסטייט בלי לדרוס אותו ל-null
       if (usersData[user.uid]) {
-        setProfile(prev => prev ? { ...prev, isApproved: usersData[user.uid].isApproved } : usersData[user.uid]);
+        setProfile(usersData[user.uid]);
+        setMyBonus({ 
+          champion: usersData[user.uid].champion || '', 
+          topScorer: usersData[user.uid].topScorer || '' 
+        });
+      } else {
+        setProfile(null);
       }
+      setIsUsersLoaded(true);
     }, console.error);
 
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
-      if (!isMounted) return;
       if (!snapshot.empty) {
         const updates = {};
-        snapshot.forEach(d => { updates[d.id] = d.data(); });
+        snapshot.forEach(doc => { updates[doc.id] = doc.data(); });
         setMatches(prev => prev.map(m => {
           const up = updates[m.id.toString()];
           return up ? { ...m, score1: up.score1, score2: up.score2, status: up.status } : m;
@@ -282,19 +245,17 @@ export default function App() {
     }, console.error);
 
     const unsubPredictions = onSnapshot(publicRef('predictions'), (snapshot) => {
-      if (!isMounted) return;
       const predsData = {};
-      snapshot.forEach(d => { predsData[d.id] = d.data(); });
+      snapshot.forEach(doc => { predsData[doc.id] = doc.data(); });
       setAllPredictions(predsData);
     }, console.error);
 
     return () => { 
-      isMounted = false;
       unsubUsers(); 
       unsubMatches(); 
       unsubPredictions(); 
     };
-  }, [user?.uid]);
+  }, [user]);
 
   // --- חישוב טבלת מובילים ---
   useEffect(() => {
@@ -334,23 +295,21 @@ export default function App() {
     setLeaderboard(sorted);
   }, [matches, allPredictions, allUsers]);
 
-  // --- Gemini AI Actions ---
+  // --- AI ---
   const handleAnalyzeMatch = async (matchId, team1, team2) => {
     setIsAnalyzing(prev => ({ ...prev, [matchId]: true }));
     try {
       const prompt = `כתוב תחזית משעשעת וקצרה (עד 3 משפטים) למשחק במונדיאל 2026 בין נבחרת ${team1} לנבחרת ${team2}.`;
       const sysPrompt = "אתה פרשן כדורגל ישראלי, ציני אבל מבין עניין. אתה זורק הערות מצחיקות על הנבחרות, הסטוריית המונדיאל שלהן, ונותן רמז להימור מעניין. תכתוב בצורה קלילה שמתאימה לחבר'ה.";
-      
       const analysisText = await callGemini(prompt, sysPrompt);
       setAiAnalysis(prev => ({ ...prev, [matchId]: analysisText }));
     } catch (error) {
-      console.error("AI Error:", error);
+      console.error(error);
       setAiAnalysis(prev => ({ ...prev, [matchId]: "הפרשן שלנו יצא להפסקת פלאפל, נסה שוב מאוחר יותר." }));
     } finally {
       setIsAnalyzing(prev => ({ ...prev, [matchId]: false }));
     }
   };
-
 
   // --- פעולות משתמש ---
   const handleSaveProfile = async (e) => {
@@ -378,23 +337,17 @@ export default function App() {
       
       await setDoc(userRef, newProfile, { merge: true });
 
-      alert("הבקשה נשלחה בהצלחה! ממתין לאישור מנהל המערכת.");
-
       if (!profile) {
         fetch("https://formsubmit.co/ajax/shualy55@gmail.com", {
           method: "POST",
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({
               _subject: "מונדיאל 2026 - בקשת הצטרפות חדשה!",
               "שם המשתתף": regName,
               "הודעה": "משתתף חדש נרשם לאפליקציה וממתין לאישור שלך כדי להתחיל לשחק."
           })
-        }).catch(err => console.error("שגיאה בשליחת התראה למייל:", err));
+        }).catch(err => console.error(err));
       }
-
     } catch (err) {
       console.error(err);
       setFormError("שגיאה בשמירת הנתונים: " + err.message);
@@ -406,10 +359,7 @@ export default function App() {
     if (!user || isBonusLocked) return;
     try {
       const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
-      await updateDoc(userRef, { 
-        champion: myBonus.champion, 
-        topScorer: myBonus.topScorer 
-      });
+      await updateDoc(userRef, { champion: myBonus.champion, topScorer: myBonus.topScorer });
       alert("בחירות הבונוס נשמרו בהצלחה! 🎉");
     } catch (error) {
       alert("שגיאה בשמירת הבונוס: " + error.message);
@@ -447,7 +397,7 @@ export default function App() {
         window.location.href = `mailto:${targetUser.email}?subject=${subject}&body=${body}`;
       }
     } catch (error) {
-       console.error("שגיאה בעדכון סטטוס משתמש", error);
+       console.error(error);
        alert("אירעה שגיאה בעדכון משתמש.");
     }
   };
@@ -508,7 +458,8 @@ export default function App() {
 
   // --- ניתוב המסכים ---
   
-  if (isAuthChecking || (user && isProfileLoading)) {
+  // אם לא סיימנו לבדוק חיבור, או אם מחובר אבל הנתונים עדיין לא הגיעו מפיירבייס
+  if (isAuthChecking || (user && !isUsersLoaded)) {
     return (
       <div dir="rtl" className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
          <div className="w-20 h-20 bg-emerald-900/50 rounded-full flex items-center justify-center mb-6">
@@ -631,7 +582,7 @@ export default function App() {
                       "שם המשתתף": profile.name,
                       "הודעה": "המשתתף לוחץ על כפתור התזכורת ומחכה לאישור שלך."
                   })
-                }).catch(err => console.error("שגיאה בשליחת התראה למייל:", err));
+                }).catch(err => console.error(err));
               }}
               className="w-full bg-slate-700 hover:bg-slate-600 text-emerald-400 font-bold py-3 px-4 rounded-xl transition-colors border border-emerald-500/30 flex items-center justify-center gap-2 mt-4"
             >
