@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, Calendar, Users, Info, Edit2, CheckCircle2, Grid, Star, LogIn, UserCheck, Shield, Clock, Sparkles, Bot, Lock, Save } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
 
 // --- הגדרות פיירבייס מותאמות אישית ---
 const customFirebaseConfig = {
@@ -210,33 +210,59 @@ export default function App() {
     }
   };
 
-  // --- משיכת נתונים (חזרה לשיטה המהירה והפשוטה) ---
+  // --- משיכת נתונים: קודם אני (ישיר ומהיר), ואז כולם (ברקע) ---
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
 
+    let isMounted = true;
+
+    // 1. בדיקה ישירה ומהירה האם *אני* קיים במערכת (מונע 30 שניות המתנה והבהובים)
+    const checkMyProfile = async () => {
+      try {
+        const myDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+        const myDocSnap = await getDoc(myDocRef); // קריאה ישירה לשרת (לא ל-Cache)
+
+        if (isMounted) {
+          if (myDocSnap.exists()) {
+            const data = myDocSnap.data();
+            setProfile({ id: myDocSnap.id, ...data });
+            setMyBonus({ 
+              champion: data.champion || '', 
+              topScorer: data.topScorer || '' 
+            });
+          } else {
+            setProfile(null); // המשתמש חדש בוודאות
+          }
+          setIsUsersLoaded(true); // מסיר את מסך הטעינה
+        }
+      } catch (error) {
+        console.error("שגיאה במשיכת הפרופיל:", error);
+        if (isMounted) setIsUsersLoaded(true); // משחרר את המסך גם במקרה של שגיאה רשת חריגה
+      }
+    };
+
+    checkMyProfile();
+
+    // 2. מאזינים ברקע לכל שאר הנתונים הענקיים (לא תוקע את פתיחת המסך)
     const publicRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
 
     const unsubUsers = onSnapshot(publicRef('users'), (snapshot) => {
+      if (!isMounted) return;
       const usersData = {};
-      snapshot.forEach(doc => { usersData[doc.id] = { id: doc.id, ...doc.data() }; });
+      snapshot.forEach(d => { usersData[d.id] = { id: d.id, ...d.data() }; });
       setAllUsers(usersData);
       
-      if (usersData[user.uid]) {
-        setProfile(usersData[user.uid]);
-        setMyBonus({ 
-          champion: usersData[user.uid].champion || '', 
-          topScorer: usersData[user.uid].topScorer || '' 
-        });
-      } else {
-        setProfile(null);
+      // עדכון הסטטוס שלי בלבד במקרה שהמנהל אישר אותי עכשיו
+      if (usersData[user.uid] && profile) {
+        setProfile(prev => prev ? { ...prev, isApproved: usersData[user.uid].isApproved } : prev);
       }
-      setIsUsersLoaded(true);
     }, console.error);
 
     const unsubMatches = onSnapshot(publicRef('matches'), (snapshot) => {
+      if (!isMounted) return;
       if (!snapshot.empty) {
         const updates = {};
-        snapshot.forEach(doc => { updates[doc.id] = doc.data(); });
+        snapshot.forEach(d => { updates[d.id] = d.data(); });
         setMatches(prev => prev.map(m => {
           const up = updates[m.id.toString()];
           return up ? { ...m, score1: up.score1, score2: up.score2, status: up.status } : m;
@@ -245,17 +271,19 @@ export default function App() {
     }, console.error);
 
     const unsubPredictions = onSnapshot(publicRef('predictions'), (snapshot) => {
+      if (!isMounted) return;
       const predsData = {};
-      snapshot.forEach(doc => { predsData[doc.id] = doc.data(); });
+      snapshot.forEach(d => { predsData[d.id] = d.data(); });
       setAllPredictions(predsData);
     }, console.error);
 
     return () => { 
+      isMounted = false;
       unsubUsers(); 
       unsubMatches(); 
       unsubPredictions(); 
     };
-  }, [user]);
+  }, [user?.uid]);
 
   // --- חישוב טבלת מובילים ---
   useEffect(() => {
@@ -348,6 +376,10 @@ export default function App() {
           })
         }).catch(err => console.error(err));
       }
+      
+      // Update local state so it transitions immediately
+      setProfile({ id: user.uid, ...newProfile });
+      
     } catch (err) {
       console.error(err);
       setFormError("שגיאה בשמירת הנתונים: " + err.message);
@@ -458,7 +490,6 @@ export default function App() {
 
   // --- ניתוב המסכים ---
   
-  // אם לא סיימנו לבדוק חיבור, או אם מחובר אבל הנתונים עדיין לא הגיעו מפיירבייס
   if (isAuthChecking || (user && !isUsersLoaded)) {
     return (
       <div dir="rtl" className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
